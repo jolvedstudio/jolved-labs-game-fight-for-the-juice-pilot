@@ -1,171 +1,98 @@
-# Unity .gitattributes Template
-# Source: https://github.com/gitattributes/gitattributes/blob/master/Unity.gitattributes
-# Last synced: 2026-02-04
-# License: MIT
-#
-# This template is maintained from the gitattributes/gitattributes repository
-# and distributed under MIT License.
+# ===========================================================================
+#  Unity .gitattributes  —  line-ending normalization + binary handling
+#  Goal: stop spurious "modified" churn (CRLF<->LF) and keep binaries safe.
+# ===========================================================================
 
-# Define macros (only works in top-level gitattributes files)
-[attr]lfs               filter=lfs diff=lfs merge=lfs -text
-[attr]unity-json        eol=lf linguist-language=json
-[attr]unity-yaml        merge=unityyamlmerge eol=lf linguist-language=yaml
+# Default: let git decide, but always check out/in text files as LF.
+* text=auto eol=lf
 
-# Optionally collapse Unity YAML files on GitHub diffs
-# [attr]unity-yaml        merge=unityyamlmerge text linguist-language=yaml linguist-generated
+# ---------------------------------------------------------------------------
+#  Unity text/YAML assets — treat as text, normalized to LF.
+#  (No merge=union; Unity YAML doesn't merge line-wise safely.)
+# ---------------------------------------------------------------------------
+*.cs        text diff=csharp eol=lf
+*.cginc     text eol=lf
+*.shader    text eol=lf
+*.uss       text eol=lf
+*.uxml      text eol=lf
+*.json      text eol=lf
+*.txt       text eol=lf
+*.md        text eol=lf
+*.xml       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
 
-# Unity source files
-*.cginc                 text
-*.compute               text linguist-language=hlsl
-*.cs                    text diff=csharp
-*.hlsl                  text linguist-language=hlsl
-*.raytrace              text linguist-language=hlsl
-*.shader                text
+# Unity serialized assets (YAML) — text, LF, never auto-merged.
+*.meta           text eol=lf merge=binary
+*.unity          text eol=lf merge=binary
+*.asset          text eol=lf merge=binary
+*.prefab         text eol=lf merge=binary
+*.mat            text eol=lf merge=binary
+*.anim           text eol=lf merge=binary
+*.controller     text eol=lf merge=binary
+*.overrideController text eol=lf merge=binary
+*.physicMaterial text eol=lf merge=binary
+*.physicsMaterial2D text eol=lf merge=binary
+*.playable       text eol=lf merge=binary
+*.mask           text eol=lf merge=binary
+*.brush          text eol=lf merge=binary
+*.flare          text eol=lf merge=binary
+*.fontsettings   text eol=lf merge=binary
+*.guiskin        text eol=lf merge=binary
+*.giparams       text eol=lf merge=binary
+*.renderTexture  text eol=lf merge=binary
+*.spriteatlas    text eol=lf merge=binary
+*.terrainlayer   text eol=lf merge=binary
+*.mixer          text eol=lf merge=binary
+*.preset         text eol=lf merge=binary
+*.asmdef         text eol=lf
+*.asmref         text eol=lf
 
-# Unity JSON files
-*.asmdef                unity-json
-*.asmref                unity-json
-*.index                 unity-json
-*.inputactions          unity-json
-*.shadergraph           unity-json
-*.shadersubgraph        unity-json
-
-# Unity UI Toolkit files
-*.tss                   text diff=css linguist-language=css
-*.uss                   text diff=css linguist-language=css
-*.uxml                  text linguist-language=xml linguist-detectable
-
-# Unity YAML files
-*.anim                  unity-yaml
-*.asset                 unity-yaml
-*.brush                 unity-yaml
-*.controller            unity-yaml
-*.flare                 unity-yaml
-*.fontsettings          unity-yaml
-*.giparams              unity-yaml
-*.guiskin               unity-yaml
-*.lighting              unity-yaml
-*.mask                  unity-yaml
-*.mat                   unity-yaml
-*.meta                  unity-yaml
-*.mixer                 unity-yaml
-*.overrideController    unity-yaml
-*.playable              unity-yaml
-*.prefab                unity-yaml
-*.preset                unity-yaml
-*.renderTexture         unity-yaml
-*.scenetemplate         unity-yaml
-*.shadervariants        unity-yaml
-*.signal                unity-yaml
-*.spriteatlas           unity-yaml
-*.spriteatlasv2         unity-yaml
-*.terrainlayer          unity-yaml
-*.unity                 unity-yaml
-
-# "physic" for 3D but "physics" for 2D
-*.physicMaterial        unity-yaml
-*.physicsMaterial2D     unity-yaml
-
-# Exclude from GitHub stats and diffs: third-party plugins, packages lock file
-Assets/Plugins/**           linguist-generated
-Packages/packages-lock.json linguist-generated
-
-# Unity LFS
-*.cubemap               lfs
-*.unitypackage          lfs
-
-# 3D models
-*.3dm                   lfs
-*.3ds                   lfs
-*.blend                 lfs
-*.blend1                lfs
-*.c4d                   lfs
-*.collada               lfs
-*.dae                   lfs
-*.dxf                   lfs
-*.FBX                   lfs
-*.fbx                   lfs
-*.jas                   lfs
-*.lws                   lfs
-*.lxo                   lfs
-*.ma                    lfs
-*.max                   lfs
-*.mb                    lfs
-*.obj                   lfs
-*.ply                   lfs
-*.skp                   lfs
-*.stl                   lfs
-*.ztl                   lfs
+# ---------------------------------------------------------------------------
+#  Binary assets — never touched by line-ending conversion or diff/merge.
+# ---------------------------------------------------------------------------
+# Images
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.bmp   binary
+*.tga   binary
+*.tif   binary
+*.tiff  binary
+*.psd   binary
+*.exr   binary
+*.hdr   binary
+*.ico   binary
 
 # Audio
-*.aif                   lfs
-*.aiff                  lfs
-*.it                    lfs
-*.mod                   lfs
-*.mp3                   lfs
-*.ogg                   lfs
-*.s3m                   lfs
-*.wav                   lfs
-*.xm                    lfs
+*.wav   binary
+*.mp3   binary
+*.ogg   binary
+*.aif   binary
+*.aiff  binary
+*.flac  binary
 
 # Video
-*.asf                   lfs
-*.avi                   lfs
-*.flv                   lfs
-*.mov                   lfs
-*.mp4                   lfs
-*.mpeg                  lfs
-*.mpg                   lfs
-*.ogv                   lfs
-*.wmv                   lfs
+*.mp4   binary
+*.mov   binary
+*.webm  binary
 
-# Images
-*.bmp                   lfs
-*.exr                   lfs
-*.gif                   lfs
-*.hdr                   lfs
-*.iff                   lfs
-*.jpeg                  lfs
-*.jpg                   lfs
-*.pict                  lfs
-*.png                   lfs
-*.psd                   lfs
-*.tga                   lfs
-*.tif                   lfs
-*.tiff                  lfs
-*.webp                  lfs
-
-# Compressed Archive
-*.7z                    lfs
-*.bz2                   lfs
-*.gz                    lfs
-*.rar                   lfs
-*.tar                   lfs
-*.zip                   lfs
-
-# Compiled Dynamic Library
-*.dll                   lfs
-*.pdb                   lfs
-*.so                    lfs
+# 3D models
+*.fbx   binary
+*.obj   binary
+*.blend binary
+*.dae   binary
+*.3ds   binary
 
 # Fonts
-*.otf                   lfs
-*.ttf                   lfs
+*.ttf   binary
+*.otf   binary
 
-# Executable/Installer
-*.apk                   lfs
-*.exe                   lfs
-
-# Documents
-*.pdf                   lfs
-
-# ETC
-*.a                     lfs
-*.reason                lfs
-*.rns                   lfs
-
-# Spine export file for Unity
-*.skel.bytes            lfs
-
-# Exceptions for .asset files such as lightning pre-baking
-LightingData.asset     binary
+# Misc
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.pdf   binary
+*.zip   binary
+*.unitypackage binary
