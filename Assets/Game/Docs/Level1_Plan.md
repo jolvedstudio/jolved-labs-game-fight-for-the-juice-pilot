@@ -48,11 +48,16 @@
 - LevelStart + LevelBounds.
 - **Validate:** MechTrooper spawns, moves, jumps, fires.
 
-### Phase 2 — Layout (mimic Lava, from 2D_Pack)
-- Recreate Lava beat structure (start ledge → gaps → mid platforms → bridge → vertical
-  section → gate) from 2D_Pack prefabs.
-- One-way platforms + colliders verified. `GateToNextLevel` → Level2.
-- **Validate:** full traversal start→gate possible.
+### Phase 2 — Layout (mimic Lava, from 2D_Pack)  ✅ DONE
+- **Approved deviation:** Rather than place 2D_Pack platform prefabs and rebuild ~33
+  colliders from scratch (fragile: 2D_Pack platforms use top-surface EdgeColliders on
+  layer 0, not Corgi Platforms/OneWayPlatforms), we **re-skinned the existing,
+  proven-traversable Lava layout** with 2D_Pack platform art. All colliders/layers/
+  positions unchanged → traversal start→gate guaranteed identical to Phase-1 validation.
+- Art copied into `Assets/Game/Sprites/Platforms/` (GamePlatform_Block, _Block2, _Ledge)
+  — self-contained, no package edits. FullRect + Repeat; renderers use Tiled draw mode
+  sized to each footprint. 32 platforms reskinned, 1 skipped. `GateToNextLevel` → Level2.
+- **Validate:** collision untouched; visual re-tune in Phase 4 lighting.
 
 ### Phase 3 — NPCs / enemies (TheMech)
 - 2–3 enemy prefabs in `Assets/Game/Prefabs/Enemies/` as Corgi `Character` variants
