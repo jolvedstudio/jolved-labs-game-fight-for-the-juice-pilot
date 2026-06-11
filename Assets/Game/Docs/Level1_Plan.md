@@ -53,12 +53,16 @@
   Lava platforms + their lights are retained as-is for now. Layout revisit deferred.
 - **Validate:** full traversal start→gate possible (already validated in Phase 1).
 
-### Phase 3 — NPCs / enemies (TheMech)
-- 2–3 enemy prefabs in `Assets/Game/Prefabs/Enemies/` as Corgi `Character` variants
-  (AI brain, Health, weapon, DamageOnTouch) using gunner/walker/destroyer/mite + new
-  controllers in `Assets/Game/Animators`.
-- Replace "Dude" NPC with a TheMech-based NPC, **preserving all abilities/features**.
-- **Validate:** enemies patrol, attack, take/deal damage, die.
+### Phase 3 — NPCs / enemies (TheMech)  ✅ DONE
+- **Approach:** Native sprite+animator swap (the correct method here — enemies hold
+  SpriteRenderer+Animator directly). Kept every existing Corgi component (AIBrain,
+  Health, DamageOnTouch, CharacterHandleWeapon, AutoRespawn, patrol/shoot actions);
+  swapped only the visual sprite + animator controller.
+- Built Corgi-compatible controllers (Idle↔Walk on `xSpeed`, full Corgi param set) in
+  `Assets/Game/Animators/Enemies/`: MechGunner, MechWalker, MechDestroyer, MechMite, MechNPC.
+- 4 LavaBots → MechEnemy_Gunner/Walker/Destroyer/Mite. Dude → MechNPC (Walker art),
+  **DudeDialogueZone + PilotLight children preserved** (all dialogue/features intact).
+- **Validated:** Play mode — all 4 enemies + NPC active, robot sprites render, no errors.
 
 ### Phase 4 — Environment treatment (Lava reference)
 - URP 2D Global Light + point lights (reuse `FlickerLight`/`LightFlicker2D`/`OverheadLightFollow`).
