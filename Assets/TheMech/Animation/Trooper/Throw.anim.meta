@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 883b670429eb871479ae7d43af78bbe9
+timeCreated: 1489702198
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 83736
+  packageName: The Mechs - Game Sprites
+  packageVersion: 1.0
+  assetPath: Assets/TheMech/Animation/Trooper/Throw.anim
+  uploadId: 168196

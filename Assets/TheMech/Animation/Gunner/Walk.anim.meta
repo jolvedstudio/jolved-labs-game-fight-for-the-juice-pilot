@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fb5eba081db88254cb83986e1f5484fe
+timeCreated: 1489701617
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 83736
+  packageName: The Mechs - Game Sprites
+  packageVersion: 1.0
+  assetPath: Assets/TheMech/Animation/Gunner/Walk.anim
+  uploadId: 168196

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4ef3b4bcfc74f874bb6fd60c8b3b7cf2
+timeCreated: 1489701520
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 83736
+  packageName: The Mechs - Game Sprites
+  packageVersion: 1.0
+  assetPath: Assets/TheMech/Animation/Gunner/Dead__000.controller
+  uploadId: 168196

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a0c9bf3bd95db1a4bb2c0a108ac81130
+timeCreated: 1489701554
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 83736
+  packageName: The Mechs - Game Sprites
+  packageVersion: 1.0
+  assetPath: Assets/TheMech/Animation/Gunner/Idle__007.controller
+  uploadId: 168196

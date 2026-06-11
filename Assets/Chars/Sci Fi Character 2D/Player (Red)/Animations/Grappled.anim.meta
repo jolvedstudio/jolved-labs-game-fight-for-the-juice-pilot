@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 29ea1f545b41f2142af7d395cb035b4f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 239905
+  packageName: Sci Fi Character 2D with 29 Animations
+  packageVersion: 1.0
+  assetPath: Assets/Packages/Sci Fi Character 2D/Player (Red)/Animations/Grappled.anim
+  uploadId: 545709

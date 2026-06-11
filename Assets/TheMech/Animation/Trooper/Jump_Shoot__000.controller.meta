@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 81c8381df11273a4abeda992cd2e41a1
+timeCreated: 1489702084
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 83736
+  packageName: The Mechs - Game Sprites
+  packageVersion: 1.0
+  assetPath: Assets/TheMech/Animation/Trooper/Jump_Shoot__000.controller
+  uploadId: 168196
