@@ -19,6 +19,22 @@
 !/Assets/Game/
 !/Assets/Game.meta
 
+# Track the level generator tooling (under Assets/Editor/Coplay) so it is versioned with the project.
+!/Assets/Editor/
+/Assets/Editor/*
+!/Assets/Editor/Coplay/
+/Assets/Editor/Coplay/*
+!/Assets/Editor/Coplay/BuildCorgiLevel.cs
+!/Assets/Editor/Coplay/BuildCorgiLevel.cs.meta
+!/Assets/Editor/Coplay/LevelGeneratorWindow.cs
+
+# 4) Within Assets/Game, keep everything (scenes, prefabs, scripts, sprites...).
+=======
+!/Assets/Editor/Coplay/LevelGeneratorWindow.cs.meta
+
+# 4) Within Assets/Game, keep everything (scenes, prefabs, scripts, sprites...).
+=======
+
 # 4) Within Assets/Game, keep everything (scenes, prefabs, scripts, sprites...).
 #    (No further ignores here — full Game folder is tracked.)
 
