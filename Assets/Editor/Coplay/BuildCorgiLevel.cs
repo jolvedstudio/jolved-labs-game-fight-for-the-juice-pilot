@@ -1,24 +1,34 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using MoreMountains.CorgiEngine;
 using MoreMountains.Tools;
-using UnityEngine.Rendering.Universal;
 
 /// <summary>
 /// Builds a multi-floor, fully functional Corgi Engine level from 2D_Pack art.
-/// Layers (by intent):
-///   - Foreground walkable geometry -> Unity layer "Platforms" (8), Default sorting order 0
-///   - Moving / elevator platforms   -> Unity layer "MovingPlatforms" (18)
-///   - Background panels (far)        -> Default sorting order -6
-///   - Background accents (near)      -> Default sorting order -4
-///   - Structural decor (doors/bulkheads/pipes) -> order -2
-///   - On-floor props (consoles/barrels/boxes)  -> order +2
-///   - Foreground trim (railings/borders)       -> order +3
-/// This script is also the reference "SceneAssembler" for the level generator:
-/// the FloorConfig list below is the data the generator's LayoutPlanner would emit.
+///
+/// Conventions (matching the 2D_Pack Demo scene):
+///   - All art at z=0 on the "Default" sorting layer; depth via sortingOrder bands:
+///       -6 far background wall, -4 background accents, -3 pipes,
+///       -2 doors / bulkheads, 0 walkable platforms, +2 on-floor props, +3 edge trim.
+///   - Everything tiles on a 5.12 grid; floors are spaced FloorSpacing = 10.24
+///     (= two panels) so platform decks, background panels and 5.12-tall doorways
+///     all tile FLUSH (a doorway tucks exactly under the deck of the floor above).
+///
+/// Inter-floor movement:
+///   - A static RAMP CHAIN (two Platform_Ramp_45 corner-to-corner) bridges Floor 0 -> 1.
+///   - A MOVING ELEVATOR (Hover_Platform + Corgi MovingPlatform) bridges Floor 1 -> 2.
+///   - An EXPRESS ELEVATOR spans TWO floors (Floor 0 -> 2) through the shaft on the
+///     left where Floor 1 does not extend.
+///
+/// Variety: a seeded System.Random varies ground-tile variants, doorway types,
+/// pipe layouts and prop selection/placement per floor (no "copy up").
+///
+/// This script is also the reference "SceneAssembler" for the level generator.
 /// </summary>
 public class BuildCorgiLevel
 {
@@ -27,11 +37,16 @@ public class BuildCorgiLevel
     const string Folder = "Assets/_CorgiPlayground";
     const string ScenePath = "Assets/_CorgiPlayground/Scenes/CorgiPlayground_Level1.unity";
 
-    const float Grid = 5.12f;       // base tile size in world units
-    const float FloorSpacing = 11f; // vertical distance between floor surfaces
+    const float Grid = 5.12f;          // base tile size in world units
+    const float FloorSpacing = 10.24f; // two panels -> flush platform/panel/door tiling
+    const int Seed = 20260612;
+
+    static System.Random _rng;
 
     static string P(string rel) => $"Assets/2D_Pack/!Prefabs/{rel}.prefab";
     static GameObject Load(string path) => AssetDatabase.LoadAssetAtPath<GameObject>(path);
+    static T Pick<T>(IList<T> list) => list[_rng.Next(list.Count)];
+    static bool Chance(float p) => _rng.NextDouble() < p;
 
     static void SetLayerRecursive(GameObject go, int layer)
     {
@@ -45,7 +60,7 @@ public class BuildCorgiLevel
             sr.sortingOrder = order;
     }
 
-    // Returns the top-surface local offset of a platform prefab from its EdgeCollider2D.
+    // Top-surface local offset of a platform prefab from its EdgeCollider2D.
     static float TopOffset(GameObject inst)
     {
         var edge = inst.GetComponent<EdgeCollider2D>();
@@ -55,17 +70,21 @@ public class BuildCorgiLevel
         return edge.offset.y + maxY;
     }
 
-    // ---- A floor's content description (generator would produce this) ----
+    // ---- A floor's content description (the generator's FloorPlanner output) ----
     class FloorConfig
     {
+        public int Index;
         public float SurfaceY;
-        public int GroundTiles;       // number of 5.12 ground tiles
         public float StartX;
-        public string[] GroundVariants; // cycle through these platform prefabs
+        public int GroundTiles;
+        public string[] GroundVariants;
+        public float Right => StartX + (GroundTiles - 1) * Grid;
+        public float Width => GroundTiles * Grid;
     }
 
     public static string Execute()
     {
+        _rng = new System.Random(Seed);
         var sb = new StringBuilder();
 
         if (!AssetDatabase.IsValidFolder(Folder)) AssetDatabase.CreateFolder("Assets", "_CorgiPlayground");
@@ -86,8 +105,6 @@ public class BuildCorgiLevel
         var uiInstance = (GameObject)PrefabUtility.InstantiatePrefab(uiCamera);
         var camInstance = (GameObject)PrefabUtility.InstantiatePrefab(cameraRig);
         camInstance.transform.position = new Vector3(8, 8, -10);
-
-        // ---- URP camera-stack fix (UICamera as Overlay on the game camera) ----
         FixUrpCameraStack(camInstance, uiInstance, sb);
 
         // ---------------- Scene roots ----------------
@@ -97,29 +114,32 @@ public class BuildCorgiLevel
         var decorRoot  = new GameObject("Decoration"); decorRoot.transform.SetParent(level.transform);
         var moversRoot = new GameObject("Movers");     moversRoot.transform.SetParent(level.transform);
 
-        var foreground = new List<GameObject>(); // used for bounds
+        var foreground = new List<GameObject>();
 
-        // ---------------- Floor layout (generator data) ----------------
+        // ---------------- Floor layout (variable lengths + offsets, no copy-up) ----------------
+        // Floor 1 deliberately starts at x=10.24 so the left shaft (x 0..10.24) is open
+        // for the express elevator that spans Floor 0 -> Floor 2.
         var floors = new List<FloorConfig>
         {
-            new FloorConfig{ SurfaceY = 0f,               StartX = 0f, GroundTiles = 10, GroundVariants = new[]{"Platforms/Platform_1","Platforms/Platform_2","Platforms/Platform_3"} },
-            new FloorConfig{ SurfaceY = FloorSpacing,      StartX = 0f, GroundTiles = 10, GroundVariants = new[]{"Platforms/Platform_3","Platforms/Platform_4","Platforms/Platform_1"} },
-            new FloorConfig{ SurfaceY = FloorSpacing * 2f, StartX = 0f, GroundTiles = 10, GroundVariants = new[]{"Platforms/Platform_2","Platforms/Platform_5","Platforms/Platform_4"} },
+            new FloorConfig{ Index=0, SurfaceY=0f,                StartX=0f,     GroundTiles=12, GroundVariants=new[]{"Platforms/Platform_1","Platforms/Platform_2","Platforms/Platform_3"} },
+            new FloorConfig{ Index=1, SurfaceY=FloorSpacing,      StartX=Grid*2f, GroundTiles=8,  GroundVariants=new[]{"Platforms/Platform_3","Platforms/Platform_4"} },
+            new FloorConfig{ Index=2, SurfaceY=FloorSpacing*2f,   StartX=Grid,    GroundTiles=11, GroundVariants=new[]{"Platforms/Platform_5","Platforms/Platform_2","Platforms/Platform_4"} },
         };
-        float levelWidth = floors[0].GroundTiles * Grid;
 
-        // ---------------- Background wall (tiled panels) ----------------
-        BuildBackground(background.transform, -3f, levelWidth + 3f,
-                        floors[0].SurfaceY - 4f, floors[floors.Count - 1].SurfaceY + Grid + 2f);
+        float worldLeft = 0f, worldRight = float.MinValue;
+        foreach (var f in floors) worldRight = Mathf.Max(worldRight, f.Right + Grid);
 
-        // ---------------- Build each floor ----------------
-        for (int f = 0; f < floors.Count; f++)
+        // ---------------- Background (flush, grid-aligned) ----------------
+        float bgYMin = -Grid;                                  // one row below floor 0
+        float bgYMax = floors[floors.Count - 1].SurfaceY + Grid * 2f;
+        BuildBackground(background.transform, worldLeft - Grid, worldRight + Grid, bgYMin, bgYMax);
+
+        // ---------------- Floors + decoration ----------------
+        foreach (var floor in floors)
         {
-            var floor = floors[f];
-            var floorGO = new GameObject($"Floor_{f}");
+            var floorGO = new GameObject($"Floor_{floor.Index}");
             floorGO.transform.SetParent(floorsRoot.transform);
 
-            // Ground run
             for (int i = 0; i < floor.GroundTiles; i++)
             {
                 string variant = floor.GroundVariants[i % floor.GroundVariants.Length];
@@ -129,41 +149,37 @@ public class BuildCorgiLevel
                 foreground.Add(g);
             }
 
-            // Decorate the floor
-            DecorateFloor(floor, f, decorRoot.transform);
+            DecorateFloor(floor, decorRoot.transform);
         }
 
-        // ---------------- Intra-floor traversal challenge (floating steps on floor 1) ----------------
+        // ---------------- Intra-floor challenge on Floor 2 (floating steps) ----------------
         {
-            float y = floors[1].SurfaceY;
-            var s1 = PlaceBySurface(P("Platforms/Platform_9"), 24f, y + 2.2f, floorsRoot.transform, "Step_F1_A"); SetLayerRecursive(s1, LayerPlatforms); SetSortingOrderRecursive(s1,0); foreground.Add(s1);
-            var s2 = PlaceBySurface(P("Platforms/Platform_9"), 30f, y + 4.0f, floorsRoot.transform, "Step_F1_B"); SetLayerRecursive(s2, LayerPlatforms); SetSortingOrderRecursive(s2,0); foreground.Add(s2);
+            var f = floors[2];
+            float y = f.SurfaceY;
+            float sx = f.StartX + Grid * 4f;
+            var s1 = PlaceBySurface(P("Platforms/Platform_9"), sx,          y + 2.0f, floorsRoot.transform, "Step_F2_A"); SetLayerRecursive(s1, LayerPlatforms); SetSortingOrderRecursive(s1,0); foreground.Add(s1);
+            var s2 = PlaceBySurface(P("Platforms/Platform_9"), sx + Grid,   y + 3.6f, floorsRoot.transform, "Step_F2_B"); SetLayerRecursive(s2, LayerPlatforms); SetSortingOrderRecursive(s2,0); foreground.Add(s2);
         }
 
-        // ---------------- Inter-floor movement ----------------
-        // Elevator (moving platform) right side: Floor 0 -> Floor 1
-        var elevA = BuildElevator(moversRoot.transform, "Elevator_F0_F1",
-            new Vector3(levelWidth - Grid * 0.5f, floors[0].SurfaceY, 0f), FloorSpacing);
-        foreground.Add(elevA);
+        // ---------------- Inter-floor connectors ----------------
+        // (A) Static RAMP CHAIN: Floor 0 -> Floor 1 (two Ramp_45 corner-to-corner)
+        BuildRampChain(floorsRoot.transform, floors[0], floors[1], floors[1].StartX + Grid * 1.0f, foreground);
 
-        // Ramp on Floor 1 going up a bit then Elevator left side: Floor 1 -> Floor 2
+        // (B) MOVING ELEVATOR: Floor 1 -> Floor 2 (single-floor travel)
         var elevB = BuildElevator(moversRoot.transform, "Elevator_F1_F2",
-            new Vector3(Grid * 0.5f, floors[1].SurfaceY, 0f), FloorSpacing);
+            new Vector3(floors[1].Right - Grid * 0.5f, floors[1].SurfaceY, 0f), FloorSpacing);
         foreground.Add(elevB);
 
-        // A static ramp linking the lower portion of floor 0 up onto a small ledge (variety)
-        var ramp = (GameObject)PrefabUtility.InstantiatePrefab(Load(P("Platforms/Platform_Ramp_45")));
-        ramp.transform.SetParent(floorsRoot.transform);
-        ramp.transform.position = new Vector3(levelWidth - Grid * 2.6f, floors[0].SurfaceY + 2.56f, 0f);
-        ramp.name = "Ramp_F0";
-        SetLayerRecursive(ramp, LayerPlatforms); SetSortingOrderRecursive(ramp, 0);
-        foreground.Add(ramp);
+        // (C) EXPRESS ELEVATOR spanning TWO floors: Floor 0 -> Floor 2 through the left shaft
+        var elevExpress = BuildElevator(moversRoot.transform, "Elevator_Express_F0_F2",
+            new Vector3(Grid * 1.0f, floors[0].SurfaceY, 0f), FloorSpacing * 2f);
+        foreground.Add(elevExpress);
 
         // ---------------- Spawn + LevelManager ----------------
         var spawnInstance = (GameObject)PrefabUtility.InstantiatePrefab(levelStart);
         spawnInstance.name = "LevelStart";
         spawnInstance.transform.SetParent(level.transform);
-        spawnInstance.transform.position = new Vector3(3f, floors[0].SurfaceY + 4f, 0f);
+        spawnInstance.transform.position = new Vector3(Grid * 4f, floors[0].SurfaceY + 4f, 0f);
         var checkPoint = spawnInstance.GetComponent<CheckPoint>();
 
         var levelManagerGO = new GameObject("LevelManager");
@@ -182,7 +198,7 @@ public class BuildCorgiLevel
             if (r == null) continue;
             if (first) { b = r.bounds; first = false; } else b.Encapsulate(r.bounds);
         }
-        b.Expand(new Vector3(4f, 12f, 10f)); // headroom + fall-death floor + side padding
+        b.Expand(new Vector3(4f, 12f, 10f));
         levelManager.LevelBounds = new Bounds(b.center, b.size);
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -191,7 +207,8 @@ public class BuildCorgiLevel
         AssetDatabase.Refresh();
 
         sb.AppendLine($"Scene saved={saved} at {ScenePath}");
-        sb.AppendLine($"Floors={floors.Count}, foreground objects={foreground.Count}");
+        sb.AppendLine($"Floors={floors.Count} (lengths {floors[0].GroundTiles}/{floors[1].GroundTiles}/{floors[2].GroundTiles}), foreground objects={foreground.Count}");
+        sb.AppendLine($"Connectors: Ramp(0->1), Elevator(1->2), Express Elevator(0->2)");
         sb.AppendLine($"LevelBounds center={levelManager.LevelBounds.center} size={levelManager.LevelBounds.size}");
         return sb.ToString();
     }
@@ -199,8 +216,6 @@ public class BuildCorgiLevel
     // ----------------------------------------------------------------
     // Placement helpers
     // ----------------------------------------------------------------
-
-    // Places a platform prefab so its walkable top surface is at world Y = surfaceY.
     static GameObject PlaceBySurface(string prefabPath, float centerX, float surfaceY, Transform parent, string name)
     {
         var inst = (GameObject)PrefabUtility.InstantiatePrefab(Load(prefabPath));
@@ -211,7 +226,6 @@ public class BuildCorgiLevel
         return inst;
     }
 
-    // Places a sprite-only decor prefab by its BOTTOM edge at world Y = bottomY.
     static GameObject PlaceDecorByBottom(string prefabPath, float centerX, float bottomY, Transform parent, int sortingOrder, string name = null)
     {
         var inst = (GameObject)PrefabUtility.InstantiatePrefab(Load(prefabPath));
@@ -224,7 +238,6 @@ public class BuildCorgiLevel
         return inst;
     }
 
-    // Places a decor prefab by its CENTER.
     static GameObject PlaceDecorByCenter(string prefabPath, float centerX, float centerY, Transform parent, int sortingOrder, string name = null)
     {
         var inst = (GameObject)PrefabUtility.InstantiatePrefab(Load(prefabPath));
@@ -236,69 +249,117 @@ public class BuildCorgiLevel
     }
 
     // ----------------------------------------------------------------
-    // Background wall
+    // Background wall (grid-aligned so floors/doors are flush)
     // ----------------------------------------------------------------
     static void BuildBackground(Transform parent, float xMin, float xMax, float yMin, float yMax)
     {
-        // far solid wall
         string[] farPanels = { "Panels/Panel_Back_UnLit", "Panels/Panel_Back_Lit", "Panels/Panel_Back_Lit_3" };
+        // snap to grid
+        xMin = Mathf.Floor(xMin / Grid) * Grid;
+        yMin = Mathf.Floor(yMin / Grid) * Grid;
         int col = 0;
         for (float x = xMin; x < xMax; x += Grid, col++)
         {
             int row = 0;
             for (float y = yMin; y < yMax; y += Grid, row++)
             {
-                string panel = farPanels[(col + row) % farPanels.Length];
+                string panel = farPanels[(col * 3 + row) % farPanels.Length];
                 PlaceDecorByCenter(P(panel), x + Grid * 0.5f, y + Grid * 0.5f, parent, -6, "BG");
             }
         }
-        // near accent band of tech panels every few columns
-        int accent = 0;
-        for (float x = xMin + Grid; x < xMax - Grid; x += Grid * 2f, accent++)
+        // near accent band of tech panels, randomized
+        string[] accents = { "Panels/Panel_Tech_6", "Panels/Panel_Back_Lit_2", "Panels/Panel_3_Clear" };
+        for (float x = xMin + Grid; x < xMax - Grid; x += Grid * 2f)
         {
-            string tech = (accent % 2 == 0) ? "Panels/Panel_Tech_6" : "Panels/Panel_Back_Lit_2";
-            float y = yMin + Grid * (1 + (accent % 3));
-            PlaceDecorByCenter(P(tech), x, y, parent, -4, "BG_Accent");
+            if (!Chance(0.6f)) continue;
+            string a = accents[_rng.Next(accents.Length)];
+            float y = yMin + Grid * (1 + _rng.Next(3));
+            PlaceDecorByCenter(P(a), x, y + Grid * 0.5f, parent, -4, "BG_Accent");
         }
     }
 
     // ----------------------------------------------------------------
-    // Per-floor decoration
+    // Per-floor decoration (varied per floor via RNG, all collider-free)
     // ----------------------------------------------------------------
-    static void DecorateFloor(FloorConfig floor, int index, Transform parent)
+    static void DecorateFloor(FloorConfig floor, Transform parent)
     {
-        var floorDecor = new GameObject($"Decor_Floor_{index}");
+        var floorDecor = new GameObject($"Decor_Floor_{floor.Index}");
         floorDecor.transform.SetParent(parent);
         var t = floorDecor.transform;
         float surface = floor.SurfaceY;
-        float right = floor.StartX + (floor.GroundTiles - 1) * Grid;
+        float left = floor.StartX;
+        float right = floor.Right;
+        float headroom = surface + FloorSpacing * 0.5f; // visible mid-band of the floor
 
-        // Doorways at both ends (structural background)
-        PlaceDecorByBottom(P("Doors/Doorway_Front_Large"), floor.StartX + Grid * 0.5f, surface, t, -2, "Doorway_Left");
-        PlaceDecorByBottom(P("Doors/Doorway_Front_Large"), right - Grid * 0.5f, surface, t, -2, "Doorway_Right");
+        // --- Doorways: vary type per floor, placed flush on the surface (tuck under deck above) ---
+        string[] doorTypes = { "Doors/Doorway_Front_Large", "Doors/Doorway_Front_Small", "Doors/Doorway_Side" };
+        string doorL = doorTypes[_rng.Next(doorTypes.Length)];
+        string doorR = doorTypes[_rng.Next(doorTypes.Length)];
+        PlaceDecorByBottom(P(doorL), left + Grid * 0.5f, surface, t, -2, "Doorway_Left");
+        PlaceDecorByBottom(P(doorR), right - Grid * 0.5f, surface, t, -2, "Doorway_Right");
 
-        // Vertical bulkhead dividers
-        PlaceDecorByBottom(P("Props/Bulkhead_4_B"), floor.StartX + Grid * 3.5f, surface, t, -2, "Bulkhead_A");
-        PlaceDecorByBottom(P("Props/Bulkhead_4_B"), floor.StartX + Grid * 6.5f, surface, t, -2, "Bulkhead_B");
+        // --- Bulkhead dividers: random count/positions ---
+        int bulkheads = 1 + _rng.Next(2);
+        for (int i = 0; i < bulkheads; i++)
+        {
+            float bx = Mathf.Lerp(left + Grid * 2f, right - Grid * 2f, (i + 0.5f) / bulkheads);
+            PlaceDecorByBottom(P("Props/Bulkhead_4_B"), bx, surface, t, -2, $"Bulkhead_{i}");
+        }
 
-        // Pipes running near the ceiling of the floor
-        PlaceDecorByCenter(P("Pipes/Pipe_1"), floor.StartX + Grid * 2.0f, surface + FloorSpacing - 1.4f, t, -3, "Pipe_A");
-        PlaceDecorByCenter(P("Pipes/Pipe_1"), floor.StartX + Grid * 5.0f, surface + FloorSpacing - 1.4f, t, -3, "Pipe_B");
-        PlaceDecorByCenter(P("Pipes/Pipe_Valve_1"), floor.StartX + Grid * 3.5f, surface + FloorSpacing - 1.4f, t, -3, "Pipe_Valve");
+        // --- Pipes: placed in the OPEN HEADROOM band so they are clearly visible ---
+        string[] pipeTypes = { "Pipes/Pipe_1", "Pipes/Pipe_Small_Straight", "Pipes/Pipe_Angle" };
+        int pipeRuns = 2 + _rng.Next(2);
+        for (int i = 0; i < pipeRuns; i++)
+        {
+            string pipe = pipeTypes[_rng.Next(pipeTypes.Length)];
+            float px = Mathf.Lerp(left + Grid, right - Grid, (i + 0.5f) / pipeRuns) + (float)(_rng.NextDouble() - 0.5) * Grid;
+            float py = headroom - 0.6f + (float)(_rng.NextDouble() - 0.5f) * 1.0f; // mid-band, stays below the deck above
+            PlaceDecorByCenter(P(pipe), px, py, t, -3, $"Pipe_{i}");
+        }
+        if (Chance(0.7f))
+            PlaceDecorByCenter(P("Pipes/Pipe_Valve_1"), Mathf.Lerp(left, right, 0.5f), headroom - 0.6f, t, -3, "Pipe_Valve");
 
-        // On-floor props (sit on the surface, in front of platforms)
-        PlaceDecorByBottom(P("Props/Console_1"), floor.StartX + Grid * 1.2f, surface, t, 2, "Console");
-        PlaceDecorByBottom(P("Props/Console_2"), floor.StartX + Grid * 1.6f, surface, t, 2, "Console2");
-        PlaceDecorByBottom(P("Props/Barrel_Red"), floor.StartX + Grid * 4.4f, surface, t, 2, "Barrel");
-        PlaceDecorByBottom(P("Props/Barrel_Blue"), floor.StartX + Grid * 4.8f, surface, t, 2, "Barrel2");
-        PlaceDecorByBottom(P("Props/Box"), floor.StartX + Grid * 7.2f, surface, t, 2, "Box");
-        PlaceDecorByBottom(P("Props/Box_B"), floor.StartX + Grid * 7.6f, surface, t, 2, "Box2");
-        PlaceDecorByBottom(P("Props/Machine"), right - Grid * 1.4f, surface, t, 2, "Machine");
+        // --- On-floor props: random selection + positions across the floor ---
+        string[] propTypes = { "Props/Console_1", "Props/Console_2", "Props/Barrel_Red", "Props/Barrel_Blue",
+                               "Props/Box", "Props/Box_B", "Props/Machine" };
+        int props = 3 + _rng.Next(4);
+        var usedX = new List<float>();
+        for (int i = 0; i < props; i++)
+        {
+            string prop = propTypes[_rng.Next(propTypes.Length)];
+            float px = left + Grid * (0.8f + (float)_rng.NextDouble() * (floor.GroundTiles - 1.6f));
+            PlaceDecorByBottom(P(prop), px, surface, t, 2, $"Prop_{i}");
+        }
 
-        // Foreground trim: border strip along the floor edge + railing accents
+        // --- Foreground trim: border strip along the whole edge + occasional railing ---
         for (int i = 0; i < floor.GroundTiles; i++)
-            PlaceDecorByBottom(P("Borders/Border_4"), floor.StartX + i * Grid, surface, t, 3, $"Border_{i}");
-        PlaceDecorByBottom(P("Props/Railing_Top"), floor.StartX + Grid * 8.5f, surface, t, 3, "Railing");
+            PlaceDecorByBottom(P("Borders/Border_4"), left + i * Grid, surface, t, 3, $"Border_{i}");
+        if (Chance(0.8f))
+            PlaceDecorByBottom(P("Props/Railing_Top"), left + Grid * (1 + _rng.Next(Mathf.Max(1, floor.GroundTiles - 2))), surface, t, 3, "Railing");
+    }
+
+    // ----------------------------------------------------------------
+    // Ramp chain: two Platform_Ramp_45 connected corner-to-corner to climb a full floor.
+    // ----------------------------------------------------------------
+    static void BuildRampChain(Transform parent, FloorConfig from, FloorConfig to, float baseX, List<GameObject> foreground)
+    {
+        // Ramp_45 collider spans corner (-2.56,-2.56) -> (2.56,2.56) => rises Grid over Grid.
+        float half = Grid * 0.5f;
+        float midY = from.SurfaceY + half; // first ramp center: bottom at floor 'from' surface
+        var r1 = (GameObject)PrefabUtility.InstantiatePrefab(Load(P("Platforms/Platform_Ramp_45")));
+        r1.name = "Ramp_F0_F1_A";
+        r1.transform.SetParent(parent);
+        r1.transform.position = new Vector3(baseX, midY, 0f);
+        SetLayerRecursive(r1, LayerPlatforms); SetSortingOrderRecursive(r1, 0);
+        foreground.Add(r1);
+
+        var r2 = (GameObject)PrefabUtility.InstantiatePrefab(Load(P("Platforms/Platform_Ramp_45")));
+        r2.name = "Ramp_F0_F1_B";
+        r2.transform.SetParent(parent);
+        // second ramp bottom-left corner coincides with first ramp top-right corner
+        r2.transform.position = new Vector3(baseX + Grid, midY + Grid, 0f);
+        SetLayerRecursive(r2, LayerPlatforms); SetSortingOrderRecursive(r2, 0);
+        foreground.Add(r2);
     }
 
     // ----------------------------------------------------------------
@@ -306,20 +367,18 @@ public class BuildCorgiLevel
     // ----------------------------------------------------------------
     static GameObject BuildElevator(Transform parent, string name, Vector3 bottomSurfacePos, float travel)
     {
-        // Use the themed Hover_Platform (has an EdgeCollider2D top surface + sprite).
         var inst = (GameObject)PrefabUtility.InstantiatePrefab(Load(P("Platforms/Hover_Platform")));
         inst.name = name;
         inst.transform.SetParent(parent);
         float top = TopOffset(inst);
-        // Place so the platform's top surface starts at the bottom floor's surface.
         inst.transform.position = new Vector3(bottomSurfacePos.x, bottomSurfacePos.y - top, 0f);
         SetLayerRecursive(inst, LayerMovingPlatforms);
         SetSortingOrderRecursive(inst, 1);
-        // Moving platforms must not be static or they won't move.
+
+        // Moving platforms must not be static.
         foreach (var tr in inst.GetComponentsInChildren<Transform>(true))
             GameObjectUtility.SetStaticEditorFlags(tr.gameObject, 0);
 
-        // Kinematic rigidbody required by MMPathMovement-driven platforms.
         var rb = inst.GetComponent<Rigidbody2D>();
         if (rb == null) rb = inst.AddComponent<Rigidbody2D>();
         rb.bodyType = RigidbodyType2D.Kinematic;
@@ -350,8 +409,8 @@ public class BuildCorgiLevel
 
         var regularData = regular.GetUniversalAdditionalCameraData();
         var uiData = ui.GetUniversalAdditionalCameraData();
-        regularData.renderType = UnityEngine.Rendering.Universal.CameraRenderType.Base;
-        uiData.renderType = UnityEngine.Rendering.Universal.CameraRenderType.Overlay;
+        regularData.renderType = CameraRenderType.Base;
+        uiData.renderType = CameraRenderType.Overlay;
         regularData.cameraStack.Clear();
         regularData.cameraStack.Add(ui);
         sb.AppendLine("URP camera stack configured (Base + UI Overlay).");

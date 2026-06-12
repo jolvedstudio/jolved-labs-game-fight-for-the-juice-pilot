@@ -222,14 +222,32 @@ Assets/_CorgiPlayground/Scenes/Generated_<seed>.unity
 
 ---
 
-## 5. Editor UX (proposed)
+## 5. Editor tool
 
-An `EditorWindow` ("Corgi 2D_Pack Level Generator") with:
+### 5.1 Current reference tool (`BuildCorgiLevel.cs`)
+The working assembler lives at `Assets/Editor/Coplay/BuildCorgiLevel.cs`. It is the
+data-driven SceneAssembler the generator will wrap, and already demonstrates the
+full pipeline end-to-end:
+- a **seeded** `System.Random` (`Seed` constant) drives all variety, so the same
+  seed reproduces the same level;
+- a `FloorConfig[]` list declares **variable-length floors** at flush-tiled
+  heights (`FloorSpacing = 10.24` = two 5.12 panels);
+- `BuildBackground`, `DecorateFloor`, `BuildRampChain`, `BuildElevator` and
+  `FixUrpCameraStack` are independent, reusable steps;
+- it writes only under `Assets/_CorgiPlayground/...` and never edits library assets.
+
+To regenerate: run the script (or change `Seed` / the `floors` list first).
+
+Key tuning constants: `Grid` (5.12), `FloorSpacing` (10.24), `Seed`, and the
+sortingOrder bands inside each builder.
+
+### 5.2 Proposed `EditorWindow` ("Corgi 2D_Pack Level Generator")
 - Seed field (+ "randomize")
-- Length / difficulty sliders, theme dropdown
+- Floors (N), per-floor length range, difficulty sliders, theme dropdown
+- Connector mix (ramps vs. single-floor elevators vs. multi-floor express elevators)
 - Player prefab picker (defaults to `Rectangle`)
 - Buttons: **Generate Preview**, **Validate**, **Save Scene**, **Save as Prefab**
-- Live count of chunks + estimated traversal time
+- Live count of objects + estimated traversal time
 - "Open last generated scene"
 
 A `[MenuItem]` quick-action and a CLI batch entry point would allow generating N
