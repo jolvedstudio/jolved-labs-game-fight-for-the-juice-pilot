@@ -28,9 +28,13 @@ rich, multi-floor Corgi Engine level** assembled from **2D_Pack art**:
 | Surface alignment | Each platform's walkable Y = `transform.y + edgeCollider.offset.y + max(point.y)`. We place "by surface height" and back-solve the pivot position |
 | URP rendering | The Corgi rig is built-in-pipeline; under URP the UICamera must be an **Overlay** in the game camera's **camera stack** (else a full-screen blue clear hides the game) |
 | Multi-floor | Floors are stacked on a vertical pitch (`FloorSpacing ≈ 11u`); each floor is an independent ground run + decor band |
-| Depth / layering | All art at z=0 on the **Default** sorting layer; depth via **sortingOrder** (background −6/−4, platforms 0, structural decor −2, props +2, trim +3) — exactly the 2D_Pack Demo convention |
-| Background | A tiled wall of `Panel_Back_*` panels (5.12 grid) with a near accent band of `Panel_Tech_*` |
-| Decoration | Doorways + bulkheads frame each floor; pipes run near ceilings; consoles/barrels/boxes/machines sit on the surface; `Border_4` strip + railings trim the floor edge |
+| Depth / layering | All art at z=0 on the **Default** sorting layer; depth via **sortingOrder** (background −10/−8, pipes −4, structural decor −2, platforms 0, props +2, trim/railings +3, **elevators +6 — always foreground**) — exactly the 2D_Pack Demo convention |
+| Background | A **single global grid pass** of `Panel_Back_*` panels (5.12 grid), palette chosen by nearest floor below the row (variety between floors), sparse `Panel_Tech_*` accents and **random gaps** so not every area is filled |
+| Decoration | Doorways + bulkheads frame each floor; **connected pipe runs** (straight segments tiled end-to-end, capped + valves) span the headroom band; consoles/barrels/boxes/machines sit on the surface; `Border_4` strip + railings trim the floor edge |
+| Pipes (connected) | Pipes are built as **runs** — `Pipe_End_1` start cap → N `Pipe_Small_Straight_2` tiled end-to-end at a constant Y → `Pipe_End_2` finish, with occasional `Pipe_Valve_UP` on top — so they visibly connect rather than float |
+| Ramp traversal | Each ramp chain gets **flat landing tiles** flush at top and bottom (`flat → diagonal → flat`) in a clear vertical band, so the player walks on/off with no collider snag and no deck overhang |
+| Stairs & railings | Functional staircase from `Platform_10` steps (each carries a flat edge collider) + decorative `Stair`/`Stair_Top` sprites; `Railing_yellow` runs up the ramp slope, `Railing_Top` accents floors |
+| Lighting modes | User toggle: **Fake** = baked-in `*_Lit` panels (default); **Real** = swap to `*_UnLit` panels + URP **`Light2D`** point/global lights, sprites switched to `Sprite-Lit-Default`, rendered through a dedicated **2D renderer** registered on the URP asset and assigned to the playground cameras only (the main forward renderer at index 0 is untouched) |
 
 ### Key 2D_Pack platform metrics (PPU 100)
 =======
@@ -241,14 +245,17 @@ To regenerate: run the script (or change `Seed` / the `floors` list first).
 Key tuning constants: `Grid` (5.12), `FloorSpacing` (10.24), `Seed`, and the
 sortingOrder bands inside each builder.
 
-### 5.2 Proposed `EditorWindow` ("Corgi 2D_Pack Level Generator")
-- Seed field (+ "randomize")
-- Floors (N), per-floor length range, difficulty sliders, theme dropdown
-- Connector mix (ramps vs. single-floor elevators vs. multi-floor express elevators)
-- Player prefab picker (defaults to `Rectangle`)
-- Buttons: **Generate Preview**, **Validate**, **Save Scene**, **Save as Prefab**
-- Live count of objects + estimated traversal time
-- "Open last generated scene"
+### 5.2 `EditorWindow` ("2D_Pack Level Generator") — implemented
+Lives at `Assets/Editor/Coplay/LevelGeneratorWindow.cs`, menu **Tools ▸ Coplay ▸
+2D_Pack Level Generator**. Current options:
+- **Seed** field + **Randomize** button (deterministic regeneration)
+- **Use Real 2D Lights** toggle — Fake baked lights vs. URP `Light2D` (see §1)
+- **Leave Background Gaps** toggle — random empty background columns
+- **Generate Level** button + a result/log panel
+
+Planned additions: Floors (N) & per-floor length ranges, difficulty sliders,
+theme dropdown, connector mix, player-prefab picker, Validate / Save-as-Prefab,
+and "open last generated scene".
 
 A `[MenuItem]` quick-action and a CLI batch entry point would allow generating N
 levels headlessly for testing.
